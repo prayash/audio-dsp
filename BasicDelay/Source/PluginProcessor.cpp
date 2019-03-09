@@ -178,8 +178,8 @@ void BasicDelayAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
         mCircularBufferWriteHead++;
 
         // Write back into the sample with the half-second delayed signal
-        buffer.setSample(0, i, buffer.getSample(0, i) * *mDryWetParam + delaySampleLeft * (1 - *mDryWetParam));
-        buffer.setSample(1, i, buffer.getSample(1, i) * *mDryWetParam + delaySampleRight * (1 - *mDryWetParam));
+        buffer.setSample(0, i, buffer.getSample(0, i) *  (1 - *mDryWetParam) + delaySampleLeft * *mDryWetParam);
+        buffer.setSample(1, i, buffer.getSample(1, i) *  (1 - *mDryWetParam) + delaySampleRight * *mDryWetParam);
 
         if (mCircularBufferWriteHead >= mCircularBufferLength) {
             mCircularBufferWriteHead = 0;
