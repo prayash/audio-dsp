@@ -49,11 +49,15 @@ public:
     void getStateInformation (MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    float lerp(float sampleX1, float sampleX2, float inPhase);
+
 private:
 
     AudioParameterFloat* mDryWetParam;
     AudioParameterFloat* mFeedbackParam;
     AudioParameterFloat* mDelayTimeParam;
+
+    float mDelayTimeSmoothed;
 
     float* mCircularBufferLeft;
     float* mCircularBufferRight;
@@ -61,6 +65,7 @@ private:
     int mCircularBufferWriteHead;
     int mCircularBufferLength;
 
+    // These are floating point values, because we want to use them to represent intersample values
     float mDelayTimeInSamples;
     float mDelayReadHead;
 

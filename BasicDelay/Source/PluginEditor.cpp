@@ -11,7 +11,7 @@ BasicDelayAudioProcessorEditor::BasicDelayAudioProcessorEditor (BasicDelayAudioP
 
     AudioParameterFloat* dryWetParameter = (AudioParameterFloat*)params.getUnchecked(0);
 
-    mDryWetSlider.setBounds(0, 0, 100, 100);
+    mDryWetSlider.setBounds(0, 12, 100, 100);
     mDryWetSlider.setSliderStyle(Slider::SliderStyle::RotaryVerticalDrag);
     mDryWetSlider.setTextBoxStyle(Slider::TextEntryBoxPosition::NoTextBox, true, 0, 0);
     mDryWetSlider.setRange(dryWetParameter->range.start, dryWetParameter->range.end);
@@ -28,6 +28,46 @@ BasicDelayAudioProcessorEditor::BasicDelayAudioProcessorEditor (BasicDelayAudioP
 
     mDryWetSlider.onDragEnd = [dryWetParameter] {
         dryWetParameter->endChangeGesture();
+    };
+
+    AudioParameterFloat* feedbackParameter = (AudioParameterFloat*)params.getUnchecked(1);
+    mFeedbackSlider.setBounds(100, 12, 100, 100);
+    mFeedbackSlider.setSliderStyle(Slider::SliderStyle::RotaryVerticalDrag);
+    mFeedbackSlider.setTextBoxStyle(Slider::TextEntryBoxPosition::NoTextBox, true, 0, 0);
+    mFeedbackSlider.setRange(feedbackParameter->range.start, feedbackParameter->range.end);
+    mFeedbackSlider.setValue(*feedbackParameter);
+    addAndMakeVisible(mFeedbackSlider);
+
+    mFeedbackSlider.onValueChange = [this, feedbackParameter] {
+        *feedbackParameter = mFeedbackSlider.getValue();
+    };
+
+    mFeedbackSlider.onDragStart = [feedbackParameter] {
+        feedbackParameter->beginChangeGesture();
+    };
+
+    mFeedbackSlider.onDragEnd = [feedbackParameter] {
+        feedbackParameter->endChangeGesture();
+    };
+
+    AudioParameterFloat* delayParameter = (AudioParameterFloat*)params.getUnchecked(2);
+    mDelayTimeSlider.setBounds(200, 12, 100, 100);
+    mDelayTimeSlider.setSliderStyle(Slider::SliderStyle::RotaryVerticalDrag);
+    mDelayTimeSlider.setTextBoxStyle(Slider::TextEntryBoxPosition::NoTextBox, true, 0, 0);
+    mDelayTimeSlider.setRange(delayParameter->range.start, delayParameter->range.end);
+    mDelayTimeSlider.setValue(*delayParameter);
+    addAndMakeVisible(mDelayTimeSlider);
+
+    mDelayTimeSlider.onValueChange = [this, delayParameter] {
+        *delayParameter = mDelayTimeSlider.getValue();
+    };
+
+    mDelayTimeSlider.onDragStart = [delayParameter] {
+        delayParameter->beginChangeGesture();
+    };
+
+    mDelayTimeSlider.onDragEnd = [delayParameter] {
+        delayParameter->endChangeGesture();
     };
 }
 

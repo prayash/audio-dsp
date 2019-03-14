@@ -14,6 +14,7 @@ BasicDelayAudioProcessor::BasicDelayAudioProcessor()
                   )
 #endif
 {
+    // User-controllable parameters
     addParameter(mDryWetParam = new AudioParameterFloat("drywet", "Dry / Wet", 0.0, 1.0, 0.5));
     addParameter(mFeedbackParam = new AudioParameterFloat("feedback", "Feedback", 0.0, 0.98, 0.5));
     addParameter(mDelayTimeParam = new AudioParameterFloat("delaytime", "Delay Time", 0.1, MAX_DELAY_TIME, 0.5));
@@ -24,6 +25,7 @@ BasicDelayAudioProcessor::BasicDelayAudioProcessor()
     mCircularBufferLength = 0;
     mDelayTimeInSamples = 0;
     mDelayReadHead = 0;
+    mDelayTimeSmoothed = 0;
 
     mFeedbackLeft = 0;
     mFeedbackRight = 0;
@@ -101,14 +103,23 @@ void BasicDelayAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     mDelayTimeInSamples = sampleRate * *mDelayTimeParam; // delayTimeLength
 
     if (mCircularBufferLeft == nullptr) {
+        delete [] mCircularBufferLeft;
         mCircularBufferLeft = new float[mCircularBufferLength];
     }
 
+    // Clear the buffers after instantiating!
+    zeromem(mCircularBufferLeft, mCircularBufferLength * sizeof(float));
+
     if (mCircularBufferRight == nullptr) {
+        delete [] mCircularBufferRight;
         mCircularBufferRight = new float[mCircularBufferLength];
     }
 
+    // Clear the buffers after instantiating!
+    zeromem(mCircularBufferRight, mCircularBufferLength * sizeof(float));
+
     mCircularBufferWriteHead = 0;
+    mDelayTimeSmoothed = *mDelayTimeParam;
 }
 
 void BasicDelayAudioProcessor::releaseResources() {
@@ -130,8 +141,9 @@ bool BasicDelayAudioProcessor::isBusesLayoutSupported (const BusesLayout& layout
 
     // This checks if the input layout matches the output layout
 #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
+    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet()) {
         return false;
+    }
 #endif
 
     return true;
@@ -154,12 +166,14 @@ void BasicDelayAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
         buffer.clear (i, 0, buffer.getNumSamples());
     }
 
-    mDelayTimeInSamples = getSampleRate() * mDelayTimeParam->get();
-
     float* leftChannel = buffer.getWritePointer(0);
     float* rightChannel = buffer.getWritePointer(1);
 
     for (int i = 0; i < buffer.getNumSamples(); i++) {
+        // Smooth the delay time to get the analog warbly effect when turning the Time knob
+        mDelayTimeSmoothed = mDelayTimeSmoothed - 0.001 * (mDelayTimeSmoothed - *mDelayTimeParam);
+        mDelayTimeInSamples = getSampleRate() * mDelayTimeSmoothed;
+
         mCircularBufferLeft[mCircularBufferWriteHead] = leftChannel[i] + mFeedbackLeft;
         mCircularBufferRight[mCircularBufferWriteHead] = rightChannel[i] + mFeedbackRight;
 
@@ -169,11 +183,21 @@ void BasicDelayAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
             mDelayReadHead += mCircularBufferLength;
         }
 
-        float delaySampleLeft = mCircularBufferLeft[(int) mDelayReadHead];
-        float delaySampleRight = mCircularBufferRight[(int) mDelayReadHead];
+        int readHeadX = (int) mDelayReadHead;
+        int readHeadX1 = readHeadX + 1;
 
-        mFeedbackLeft = delaySampleLeft * mFeedbackParam->get();
-        mFeedbackRight = delaySampleRight * *mFeedbackParam;
+        // Extract the decimal value from mDelayReadHead
+        float readHeadFloat = mDelayReadHead - readHeadX;
+
+        if (readHeadX1 >= mCircularBufferLength) {
+            readHeadX1 -= mCircularBufferLength;
+        }
+
+        float delaySampleLeft = lerp(mCircularBufferLeft[readHeadX], mCircularBufferLeft[readHeadX1], readHeadFloat);
+        float delaySampleRight = lerp(mCircularBufferRight[readHeadX], mCircularBufferRight[readHeadX1], readHeadFloat);
+
+        mFeedbackLeft = *mFeedbackParam * delaySampleLeft;
+        mFeedbackRight = *mFeedbackParam * delaySampleRight;
 
         mCircularBufferWriteHead++;
 
@@ -212,4 +236,8 @@ void BasicDelayAudioProcessor::setStateInformation (const void* data, int sizeIn
 // This creates new instances of the plugin..
 AudioProcessor* JUCE_CALLTYPE createPluginFilter() {
     return new BasicDelayAudioProcessor();
+}
+
+float BasicDelayAudioProcessor::lerp(float sampleX1, float sampleX2, float inPhase) {
+    return (1 - inPhase) * sampleX1 + inPhase * sampleX2;
 }
