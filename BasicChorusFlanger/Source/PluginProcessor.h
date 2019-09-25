@@ -51,7 +51,7 @@ public:
 
 private:
 
-    float mLFOPhase;
+    // Parameter Declarations
 
     AudioParameterFloat* mDryWetParam;
     AudioParameterFloat* mDepthParam;
@@ -60,6 +60,10 @@ private:
     AudioParameterFloat* mFeedbackParam;
     AudioParameterInt* mTypeParam;
 
+    // LFO
+    float mLFOPhase;
+
+    // Circular Buffer
     float mFeedbackLeft;
     float mFeedbackRight;
 
