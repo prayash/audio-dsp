@@ -52,21 +52,16 @@ public:
 private:
 
     float mLFOPhase;
-    float mDelayTimeSmoothed;
 
     AudioParameterFloat* mDryWetParam;
     AudioParameterFloat* mDepthParam;
     AudioParameterFloat* mRateParam;
     AudioParameterFloat* mPhaseOffsetParam;
     AudioParameterFloat* mFeedbackParam;
-
     AudioParameterInt* mTypeParam;
 
     float mFeedbackLeft;
     float mFeedbackRight;
-
-    float mDelayTimeInSamples;
-    float mDelayReadHead;
 
     int mCircularBufferWriteHead;
     int mCircularBufferLength;

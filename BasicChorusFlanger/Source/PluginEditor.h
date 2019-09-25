@@ -24,7 +24,12 @@ private:
     BasicChorusFlangerAudioProcessor& processor;
 
     Slider mDryWetSlider;
+    Slider mDepthSlider;
+    Slider mRateSlider;
+    Slider mPhaseOffsetSlider;
     Slider mFeedbackSlider;
+
+    ComboBox mType;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BasicChorusFlangerAudioProcessorEditor)
 

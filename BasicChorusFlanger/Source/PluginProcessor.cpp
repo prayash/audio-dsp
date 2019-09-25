@@ -26,9 +26,6 @@ BasicChorusFlangerAudioProcessor::BasicChorusFlangerAudioProcessor()
     mCircularBufferRight = nullptr;
     mCircularBufferWriteHead = 0;
     mCircularBufferLength = 0;
-    mDelayTimeInSamples = 0;
-    mDelayReadHead = 0;
-    mDelayTimeSmoothed = 0;
     mLFOPhase = 0;
 
     mFeedbackLeft = 0;
@@ -101,7 +98,6 @@ void BasicChorusFlangerAudioProcessor::changeProgramName (int index, const Strin
 
 //==============================================================================
 void BasicChorusFlangerAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock) {
-    mDelayTimeSmoothed = 1;
     mCircularBufferLength = sampleRate * MAX_DELAY_TIME;
     mLFOPhase = 0;
 
@@ -157,6 +153,13 @@ void BasicChorusFlangerAudioProcessor::processBlock (AudioBuffer<float>& buffer,
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
+//    DBG("Dry/Wet: " << *mDryWetParam);
+//    DBG("Depth: " << *mDepthParam);
+//    DBG("Rate: " << *mRateParam);
+//    DBG("Phase: " << *mPhaseOffsetParam);
+//    DBG("Feedback: " << *mFeedbackParam);
+//    DBG("Type: " << (int)*mTypeParam);
+
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
     // guaranteed to be empty - they may contain garbage).
@@ -171,42 +174,75 @@ void BasicChorusFlangerAudioProcessor::processBlock (AudioBuffer<float>& buffer,
     float* rightChannel = buffer.getWritePointer(1);
 
     for (int i = 0; i < buffer.getNumSamples(); i++) {
-        float lfoOut = sin(2 * M_PI * mLFOPhase);
+        float lfoOutLeft = sin(2 * M_PI * mLFOPhase);
+        float lfoPhaseRight = mLFOPhase + *mPhaseOffsetParam;
 
-        mLFOPhase += *mRateParam * getSampleRate();
+        if (lfoPhaseRight > 1) {
+            lfoPhaseRight -= 1;
+        }
+
+        float lfoOutRight = sin(2 * M_PI * lfoPhaseRight);
+
+        lfoOutLeft *= *mDepthParam;
+        lfoOutRight *= *mDepthParam;
+
+        float lfoOutMappedLeft = 0;
+        float lfoOutMappedRight = 0;
+
+        // Chorus Effect
+        if (*mTypeParam == 0) {
+            lfoOutMappedLeft = jmap(lfoOutLeft, -1.0f, 1.0f, 0.005f, 0.03f);
+            lfoOutMappedRight = jmap(lfoOutRight, -1.0f, 1.0f, 0.005f, 0.03f);
+        } else {
+            // Flanger Effect
+            lfoOutMappedLeft = jmap(lfoOutLeft, -1.0f, 1.0f, 0.001f, 0.005f);
+            lfoOutMappedRight = jmap(lfoOutRight, -1.0f, 1.0f, 0.001f, 0.005f);
+        }
+
+        // Map the LFO value to a range of time values (5 - 30ms)
+        float delayTimeSamplesLeft = getSampleRate() * lfoOutMappedLeft;
+        float delayTimeSamplesRight = getSampleRate() * lfoOutMappedRight;
+
+        mLFOPhase += *mRateParam / getSampleRate();
 
         // Ensure the LFO phase is bounded between 0 and 1.
         if (mLFOPhase > 1) {
             mLFOPhase -= 1;
         }
 
-        // Map the LFO value to a range of time values (5 - 30ms)
-        float lfoOutMapped = jmap(lfoOut, -1.0f, 1.0f, 0.005f, 0.03f);
-
-        mDelayTimeSmoothed = mDelayTimeSmoothed - 0.001 * (mDelayTimeSmoothed - lfoOutMapped);
-        mDelayTimeInSamples = getSampleRate() * mDelayTimeSmoothed;
-
         mCircularBufferLeft[mCircularBufferWriteHead] = leftChannel[i] + mFeedbackLeft;
         mCircularBufferRight[mCircularBufferWriteHead] = rightChannel[i] + mFeedbackRight;
 
-        mDelayReadHead = mCircularBufferWriteHead - mDelayTimeInSamples;
+        float delayReadHeadLeft = mCircularBufferWriteHead - delayTimeSamplesLeft;
 
-        if (mDelayReadHead < 0) {
-            mDelayReadHead += mCircularBufferLength;
+        if (delayReadHeadLeft < 0) {
+            delayReadHeadLeft += mCircularBufferLength;
         }
 
-        int readHeadX = (int) mDelayReadHead;
-        int readHeadX1 = readHeadX + 1;
+        float delayReadHeadRight = mCircularBufferWriteHead - delayTimeSamplesRight;
 
-        // Extract the decimal value from mDelayReadHead
-        float readHeadFloat = mDelayReadHead - readHeadX;
-
-        if (readHeadX1 >= mCircularBufferLength) {
-            readHeadX1 -= mCircularBufferLength;
+        if (delayReadHeadRight < 0) {
+            delayReadHeadRight += mCircularBufferLength;
         }
 
-        float delaySampleLeft = lerp(mCircularBufferLeft[readHeadX], mCircularBufferLeft[readHeadX1], readHeadFloat);
-        float delaySampleRight = lerp(mCircularBufferRight[readHeadX], mCircularBufferRight[readHeadX1], readHeadFloat);
+        int readHeadLeft_x = (int) delayReadHeadLeft;
+        int readHeadLeft_x1 = readHeadLeft_x + 1;
+        float readHeadFloatLeft = delayReadHeadLeft - readHeadLeft_x;
+
+        if (readHeadLeft_x1 >= mCircularBufferLength) {
+            readHeadLeft_x1 -= mCircularBufferLength;
+        }
+
+        int readHeadRight_x = (int) delayReadHeadRight;
+        int readHeadRight_x1 = readHeadRight_x + 1;
+        float readHeadFloatRight = delayReadHeadRight - readHeadRight_x;
+
+        if (readHeadRight_x1 >= mCircularBufferLength) {
+            readHeadRight_x1 -= mCircularBufferLength;
+        }
+
+        float delaySampleLeft = lerp(mCircularBufferLeft[readHeadLeft_x], mCircularBufferLeft[readHeadLeft_x1], readHeadFloatLeft);
+        float delaySampleRight = lerp(mCircularBufferRight[readHeadRight_x], mCircularBufferRight[readHeadRight_x1], readHeadFloatRight);
 
         mFeedbackLeft = *mFeedbackParam * delaySampleLeft;
         mFeedbackRight = *mFeedbackParam * delaySampleRight;
